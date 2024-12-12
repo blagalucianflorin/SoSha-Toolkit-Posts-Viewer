@@ -209,9 +209,11 @@
 
 						<div class="w-full overflow-hidden">
 							<p class="break-words">
-								{#each postGroup.posts[postGroup.selected_network].text.split(/(#\w+)/g) as part}
-									<span class="{part.startsWith('#') ? 'text-blue-500' : ''}">{part}</span>
-								{/each}
+								{#if postGroup.posts[postGroup.selected_network].text}
+									{#each postGroup.posts[postGroup.selected_network].text.split(/(#\w+)/g) as part}
+										<span class="{part.startsWith('#') ? 'text-blue-500' : ''}">{part}</span>
+									{/each}
+								{/if}
 							</p>
 
 							{#if postGroup.posts[0].captioned_link || postGroup.posts[0].media_groups.length !== 0}

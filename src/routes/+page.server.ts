@@ -9,8 +9,8 @@ export const load = async () => {
         }
     };
 
-    const toolkits_response = await fetch(`${PUBLIC_BASE_DOMAIN}/api/v1/organizations/${PRIVATE_ORGANIZATION_ID}/toolkits`, options);
-    const toolkits = (await toolkits_response.json()).map((toolkit: Toolkit) => ({name: toolkit.name, id: toolkit.id, status: toolkit.status}));
+    const toolkitsResponse = await fetch(`${PUBLIC_BASE_DOMAIN}/api/v1/organizations/${PRIVATE_ORGANIZATION_ID}/toolkits`, options);
+    const toolkits = (await toolkitsResponse.json()).map((toolkit: Toolkit) => ({name: toolkit.name, id: toolkit.id, status: toolkit.status}));
 
     return { toolkits };
 };
