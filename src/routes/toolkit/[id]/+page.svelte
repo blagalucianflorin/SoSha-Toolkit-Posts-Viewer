@@ -13,16 +13,8 @@
 	let animatingPosts = new Set<SelectablePostGroup>();
 	let draggingPost: SelectablePostGroup | undefined;
 
-	function saveLayout(): void {
-		const layout: LayoutItem[] = postGroups.map((post, index) => ({
-			groupId: post.groupId,
-			order: index,
-		}));
-		localStorage.setItem('post-grid-layout', JSON.stringify(layout));
-	}
-
 	function initializePostGroups(): void {
-		const savedLayout = localStorage.getItem('post-grid-layout');
+		const savedLayout = localStorage.getItem(`post-grid-layout-${data.toolkitId}`);
 		const layout = savedLayout ? JSON.parse(savedLayout) : [];
 		const initialPosts = data.postGroups.map((post: PostGroup) => ({
 			...post,
@@ -48,7 +40,26 @@
 		postGroups = orderedPosts;
 	}
 
-	function swapWith(post: SelectablePostGroup): void {
+	function moveSelectedToStart(): void {
+		const selectedPosts = postGroups.filter(post => post.selected);
+		const unselectedPosts = postGroups.filter(post => !post.selected);
+		postGroups = [...selectedPosts, ...unselectedPosts];
+
+		// Update layout in localStorage
+		const layout: LayoutItem[] = postGroups.map((post, index) => ({
+			groupId: post.groupId,
+			order: index,
+		}));
+		localStorage.setItem(`post-grid-layout-${data.toolkitId}`, JSON.stringify(layout));
+	}
+
+	function clearSelection(): void {
+		postGroups.forEach(post => post.selected = false);
+		selectedPostsCount = 0;
+		postGroups = postGroups;
+	}
+
+	function swapPosts(post: SelectablePostGroup): void {
 		if (!isGridView || draggingPost === post || animatingPosts.has(post)) return;
 		if (!draggingPost) return;
 
@@ -59,14 +70,15 @@
 		postGroups.splice(targetIndex, 0, draggingPost);
 
 		postGroups = postGroups;
-		saveLayout();
+
+		const layout: LayoutItem[] = postGroups.map((post, index) => ({
+			groupId: post.groupId,
+			order: index,
+		}));
+		localStorage.setItem(`post-grid-layout-${data.toolkitId}`, JSON.stringify(layout));
 	}
 
 	function handleDragStart(event: DragEvent, post: SelectablePostGroup): void {
-		if (!isGridView) {
-			event.preventDefault();
-			return;
-		}
 		draggingPost = post;
 
 		if (event.dataTransfer) {
@@ -111,28 +123,44 @@
 			<i class="fa-solid fa-house w-5 h-5"></i>
 		</a>
 
-		<div class="flex-grow flex justify-center items-center">
+		<div class="flex-grow flex justify-center items-center gap-2">
 			<div class="btn-group max-sm:hidden">
 				{#if postGroups.length !== 0}
-				<button
-					class="btn btn-sm m-[1px] btn-square border-2 shadow border-base-300 hover:border-gray-500 {isGridView ? 'btn-active' : 'bg-transparent'}"
-					onclick={() => isGridView = true}
-					aria-label="set-grid-view"
-				>
-					<i class="fa-solid fa-grip w-4 h-4"></i>
-				</button>
-				<button
-					class="btn btn-sm m-[1px] btn-square border-2 shadow border-base-300 hover:border-gray-500 {!isGridView ? 'btn-active' : 'bg-transparent'}"
-					onclick={() => isGridView = false}
-					aria-label="set-list-view"
-				>
-					<i class="fa-solid fa-list w-4 h-4"></i>
-				</button>
+					<button
+						class="btn btn-sm m-[1px] btn-square border-2 shadow border-base-300 hover:border-gray-500 {isGridView ? 'btn-active' : 'bg-transparent'}"
+						onclick={() => isGridView = true}
+						aria-label="set-grid-view"
+					>
+						<i class="fa-solid fa-grip w-4 h-4"></i>
+					</button>
+					<button
+						class="btn btn-sm m-[1px] btn-square border-2 shadow border-base-300 hover:border-gray-500 {!isGridView ? 'btn-active' : 'bg-transparent'}"
+						onclick={() => isGridView = false}
+						aria-label="set-list-view"
+					>
+						<i class="fa-solid fa-list w-4 h-4"></i>
+					</button>
 				{/if}
 			</div>
 
 			{#if selectedPostsCount > 0}
-				<p class="m-1">{selectedPostsCount} selected</p>
+				<div class="flex items-center gap-2">
+					<p class="m-1">{selectedPostsCount} selected</p>
+					<button
+						class="btn btn-sm btn-primary"
+						onclick={moveSelectedToStart}
+						aria-label="move selected to start"
+					>
+						<i class="fa-solid fa-arrow-up-wide-short w-4 h-4"></i>
+					</button>
+					<button
+						class="btn btn-sm btn-ghost"
+						onclick={clearSelection}
+						aria-label="clear selection"
+					>
+						<i class="fa-solid fa-xmark w-4 h-4"></i>
+					</button>
+				</div>
 			{/if}
 		</div>
 	</div>
@@ -146,8 +174,8 @@
 		<div class="w-full {isGridView ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'flex flex-col gap-4'}">
 			{#each postGroups as postGroup (postGroup.groupId)}
 				<div class="card card-compact bg-base-100 shadow-md border-[3px] relative
-													{postGroup.selected ? 'border-primary' : 'border-transparent hover:border-gray-300'}
-													{!isGridView ? 'h-auto' : 'h-full'}"
+										{postGroup.selected ? 'border-primary' : 'border-transparent hover:border-gray-300'}
+										{!isGridView ? 'h-auto' : 'h-full'}"
 						 onclick={() => selectPost(postGroup)}
 						 onkeydown={(e) => e.key === 'Enter' && selectPost(postGroup)}
 						 tabindex="0"
@@ -155,7 +183,7 @@
 						 draggable={isGridView}
 						 ondragstart={(e) => handleDragStart(e, postGroup)}
 						 ondragend={() => draggingPost = undefined}
-						 ondragenter={() => swapWith(postGroup)}
+						 ondragenter={() => swapPosts(postGroup)}
 						 ondragover={(e) => e.preventDefault()}
 				>
 					{#if isGridView}
@@ -168,7 +196,7 @@
 						<div class="{!isGridView ? 'w-1/5 flex flex-col gap-1 pr-4' : ''}">
 							<div class="flex flex-row items-center flex-wrap">
 								{#if postGroup.posts[0].status === "published"}
-									<div class="badge badge-success max-sm:badge-sm gap-2">Published</div>
+									<div class="badge badge-success max-sm:badge-sm gap-2 m-1">Published</div>
 								{:else if postGroup.posts[0].status === "draft"}
 									<div class="badge badge-warning max-sm:badge-sm gap-2 m-1">Draft</div>
 								{/if}

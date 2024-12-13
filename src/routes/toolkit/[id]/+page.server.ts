@@ -26,5 +26,5 @@ export const load = async ({ params }) => {
 		posts
 	}));
 
-	return { postGroups };
+	return { postGroups, toolkitId: params.id };
 };
