@@ -112,8 +112,8 @@
 	onMount(() => {
 		initializePostGroups();
 
-		isGridView = window.innerWidth >= 640;
-		window.addEventListener('resize', () => { isGridView = window.innerWidth >= 640;});
+		// isGridView = window.innerWidth >= 640;
+		// window.addEventListener('resize', () => { isGridView = window.innerWidth >= 640;});
 	});
 </script>
 
