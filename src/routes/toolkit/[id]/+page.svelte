@@ -1,91 +1,91 @@
 <script lang="ts">
-	import type { PostGroup } from '$lib/types';
 	import { onMount } from 'svelte';
+	import type { PostGroup } from '$lib/types';
 
-	type SelectablePostGroup = PostGroup & { selected: boolean; selected_network: number };
-	type LayoutItem = { groupId: string; order: number };
+	type SelectablePostGroup = PostGroup & { selected: boolean ; selected_network: number };
 
 	const { data } = $props();
 
-	let postGroups: SelectablePostGroup[] = $state([]);
-	let isGridView = $state(false);
+	let posts: SelectablePostGroup[] = $state([]);
+	let isGridView = $state(true);
 	let selectedPostsCount = $state(0);
-	let animatingPosts = new Set<SelectablePostGroup>();
-	let draggingPost: SelectablePostGroup | undefined;
+	let draggingIndex: number | undefined;
+
 
 	function initializePostGroups(): void {
-		const savedLayout = localStorage.getItem(`post-grid-layout-${data.toolkitId}`);
-		const layout = savedLayout ? JSON.parse(savedLayout) : [];
-		const initialPosts = data.postGroups.map((post: PostGroup) => ({
-			...post,
-			selected: false,
-			selected_network: 0,
-		}));
+		const localStorageLayout = localStorage.getItem(`post-grid-layout-${data.toolkitId}`);
+		const layout: PostGroup[] = localStorageLayout ? JSON.parse(localStorageLayout) : [];
+		const initialPosts: SelectablePostGroup[] = data.postGroups as SelectablePostGroup[];
 
-		const postsMap = new Map(initialPosts.map(post => [post.groupId, post]));
-		const orderedPosts: SelectablePostGroup[] = [];
+		for (const initialPost of initialPosts) {
+			initialPost.selected = false;
+			initialPost.selected_network = 0;
+			initialPost.groupId = initialPost.posts[0].group_id;
+		}
 
-		layout.forEach((item: PostGroup) => {
-			const post = postsMap.get(item.groupId);
-			if (post) {
-				orderedPosts.push(post);
-				postsMap.delete(item.groupId);
+		for (const savedPost of layout) {
+			let found: number | boolean = false;
+
+			for (let i = 0; i < initialPosts.length; i++) {
+				if (savedPost.groupId === initialPosts[i].groupId) {
+					found = i;
+					break;
+				}
 			}
-		});
 
-		postsMap.forEach(post => {
-			orderedPosts.push(post);
-		});
+			if (found !== false) {
+				posts.push(initialPosts.splice(found, 1)[0]);
+			}
+		}
 
-		postGroups = orderedPosts;
+		for (const initialPost of initialPosts) {
+			posts.push(initialPost);
+		}
+	}
+
+	function saveLayout(): void {
+		localStorage.setItem(`post-grid-layout-${data.toolkitId}`, JSON.stringify(posts));
 	}
 
 	function moveSelectedToStart(): void {
-		const selectedPosts = postGroups.filter(post => post.selected);
-		const unselectedPosts = postGroups.filter(post => !post.selected);
-		postGroups = [...selectedPosts, ...unselectedPosts];
+		let movePosition = 0;
 
-		// Update layout in localStorage
-		const layout: LayoutItem[] = postGroups.map((post, index) => ({
-			groupId: post.groupId,
-			order: index,
-		}));
-		localStorage.setItem(`post-grid-layout-${data.toolkitId}`, JSON.stringify(layout));
+		for (let i = 0; i < posts.length; i++) {
+			if (posts[i].selected) {
+				const temp = posts[i];
+				posts[i] = posts[movePosition];
+				posts[movePosition] = temp;
+				movePosition++;
+			}
+		}
+
+		saveLayout();
 	}
 
 	function clearSelection(): void {
-		postGroups.forEach(post => post.selected = false);
+		for (let post of posts) {
+			post.selected = false;
+		}
 		selectedPostsCount = 0;
-		postGroups = postGroups;
 	}
 
-	function swapPosts(post: SelectablePostGroup): void {
-		if (!isGridView || draggingPost === post || animatingPosts.has(post)) return;
-		if (!draggingPost) return;
+	function swapPosts(postIndex: number): void {
+		if (draggingIndex === undefined || draggingIndex === postIndex) return;
 
-		const draggedIndex = postGroups.indexOf(draggingPost);
-		const targetIndex = postGroups.indexOf(post);
-
-		postGroups.splice(draggedIndex, 1);
-		postGroups.splice(targetIndex, 0, draggingPost);
-
-		postGroups = postGroups;
-
-		const layout: LayoutItem[] = postGroups.map((post, index) => ({
-			groupId: post.groupId,
-			order: index,
-		}));
-		localStorage.setItem(`post-grid-layout-${data.toolkitId}`, JSON.stringify(layout));
+		const temp = posts[draggingIndex];
+		posts[draggingIndex] = posts[postIndex];
+		posts[postIndex] = temp;
+		draggingIndex = postIndex;
 	}
 
-	function handleDragStart(event: DragEvent, post: SelectablePostGroup): void {
-		draggingPost = post;
+	function handleDragStart(event: DragEvent, postIndex: number): void {
+		draggingIndex = postIndex;
 
 		if (event.dataTransfer) {
-			const draggedEl = event.target as HTMLElement;
-			const originalRect = draggedEl.getBoundingClientRect();
+			const draggedCard = event.target as HTMLElement;
+			const originalRect = draggedCard.getBoundingClientRect();
+			const clone = draggedCard.cloneNode(true) as HTMLElement;
 
-			const clone = draggedEl.cloneNode(true) as HTMLElement;
 			clone.style.width = `${originalRect.width}px`;
 			clone.style.height = `${originalRect.height}px`;
 			clone.style.pointerEvents = 'none';
@@ -104,16 +104,13 @@
 		}
 	}
 
-	function selectPost(post: SelectablePostGroup): void {
-		post.selected = !post.selected;
-		selectedPostsCount = postGroups.reduce((count, post) => count + (post.selected ? 1 : 0), 0);
+	function selectPost(postIndex: number): void {
+		posts[postIndex].selected = !posts[postIndex].selected;
+		selectedPostsCount += posts[postIndex].selected ? 1 : -1;
 	}
 
 	onMount(() => {
 		initializePostGroups();
-
-		// isGridView = window.innerWidth >= 640;
-		// window.addEventListener('resize', () => { isGridView = window.innerWidth >= 640;});
 	});
 </script>
 
@@ -125,7 +122,7 @@
 
 		<div class="flex-grow flex justify-center items-center gap-2">
 			<div class="btn-group max-sm:hidden">
-				{#if postGroups.length !== 0}
+				{#if posts.length !== 0}
 					<button
 						class="btn btn-sm m-[1px] btn-square border-2 shadow border-base-300 hover:border-gray-500 {isGridView ? 'btn-active' : 'bg-transparent'}"
 						onclick={() => isGridView = true}
@@ -165,25 +162,25 @@
 		</div>
 	</div>
 
-	{#if postGroups.length === 0}
+	{#if posts.length === 0}
 		<div class="flex flex-col items-center justify-center p-8 text-center">
 			<i class="fa-regular fa-folder-open text-gray-400 w-16 h-16 mb-4"></i>
 			<h3 class="text-xl font-semibold text-gray-600 mb-2">No Posts Yet</h3>
 		</div>
 	{:else}
 		<div class="w-full {isGridView ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4' : 'flex flex-col gap-4'}">
-			{#each postGroups as postGroup (postGroup.groupId)}
+			{#each posts as postGroup, index (postGroup.groupId)}
 				<div class="card card-compact bg-base-100 shadow-md border-[3px] relative
 										{postGroup.selected ? 'border-primary' : 'border-transparent hover:border-gray-300'}
 										{!isGridView ? 'h-auto' : 'h-full'}"
-						 onclick={() => selectPost(postGroup)}
-						 onkeydown={(e) => e.key === 'Enter' && selectPost(postGroup)}
+						 onclick={() => selectPost(index)}
+						 onkeydown={(e) => e.key === 'Enter' && selectPost(index)}
 						 tabindex="0"
 						 role="button"
 						 draggable={isGridView}
-						 ondragstart={(e) => handleDragStart(e, postGroup)}
-						 ondragend={() => draggingPost = undefined}
-						 ondragenter={() => swapPosts(postGroup)}
+						 ondragstart={(e) => handleDragStart(e, index)}
+						 ondragend={() => { draggingIndex = undefined; saveLayout(); }}
+						 ondragenter={() => swapPosts(index)}
 						 ondragover={(e) => e.preventDefault()}
 				>
 					{#if isGridView}
